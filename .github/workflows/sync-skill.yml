@@ -1,0 +1,40 @@
+name: Weekly SKILL.md Sync
+
+on:
+  schedule:
+    # Every Monday at 02:30 UTC (10:30 Beijing Time)
+    - cron: "30 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch canonical SKILL.md from mozhenzhen.com
+        run: |
+          tmp_file="$(mktemp)"
+          trap 'rm -f "$tmp_file"' EXIT
+          curl -fsSL "https://mozhenzhen.com/SKILL.md" -o "$tmp_file"
+          test -s "$tmp_file"
+          head -n 1 "$tmp_file" | grep -qx -- "---"
+          grep -q "^name: mozhenzhen$" "$tmp_file"
+          mkdir -p skills/mozhenzhen
+          mv "$tmp_file" skills/mozhenzhen/SKILL.md
+
+      - name: Commit updated SKILL.md if changed
+        run: |
+          if git diff --quiet skills/mozhenzhen/SKILL.md; then
+            echo "No SKILL.md changes detected."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add skills/mozhenzhen/SKILL.md
+          git commit -m "chore(skill): sync SKILL.md from mozhenzhen.com"
+          git push
